@@ -1,11 +1,31 @@
 package com.tabosag.qxsquare;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+
+import android.app.Dialog;
+import android.content.Context;
+import android.content.IntentSender;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
+import android.util.Log;
 import android.view.Menu;
-import android.view.MenuItem;
+import android.view.View;
+import android.widget.Toast;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesClient;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.location.LocationClient;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
@@ -13,59 +33,51 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-public class MainActivity extends FragmentActivity {
-	private static final LatLng QUIXADA = new LatLng( -4.9708, -39.01 );
-	private static final LatLng FORTALEZA = new LatLng( -3.75, -38.50 );
+public class MainActivity extends FragmentActivity implements LocationListener,
+		GooglePlayServicesClient.ConnectionCallbacks,
+		GooglePlayServicesClient.OnConnectionFailedListener {
+
+	private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
+	private final static int REQUEST_CODE_RECOVER_PLAY_SERVICES = 1001;
+	
+
+	private boolean updatesRequest = false;
+	private Location localizacaoAtual = null;
+	private boolean amIConected = false;
 	private GoogleMap googleMap;
-	private int mapType = GoogleMap.MAP_TYPE_NORMAL;
+	private LocationClient myLocationClient;
+	private LocationRequest myLocationRequest;
+	private double latitude;
+	private double longitude;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
-		FragmentManager fragmentManager = getSupportFragmentManager();
-		SupportMapFragment mapFragment = (SupportMapFragment) fragmentManager
-				.findFragmentById(R.id.map);
-		googleMap = mapFragment.getMap();
+		// Criando o Client de localização
+		myLocationClient = new LocationClient(this, this, this);
 
-		LatLng sfLatLng = new LatLng(37.7750, -122.4183);
-		googleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-		googleMap.addMarker(new MarkerOptions()
-				.position(QUIXADA)
-				.title("Quixadá")
-				.snippet("Population: 776733")
-				.icon(BitmapDescriptorFactory
-						.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+		// Criando a solicitação da localização
+		myLocationRequest = LocationRequest.create();
+		myLocationRequest.setInterval(LocationUtils.UPDATE_TIME);
+		myLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+		myLocationRequest.setFastestInterval(1000);
 
-		LatLng sLatLng = new LatLng(37.857236, -122.486916);
-		googleMap.addMarker(new MarkerOptions()
-				.position(FORTALEZA)
-				.title("Fortaleza")
-				.icon(BitmapDescriptorFactory
-						.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)));
+		updatesRequest = false;
 
-		googleMap.getUiSettings().setCompassEnabled(true);
-		googleMap.getUiSettings().setZoomControlsEnabled(true);
-		googleMap.getUiSettings().setMyLocationButtonEnabled(true);
+	}
 
-		LatLng cameraLatLng = sfLatLng;
-		float cameraZoom = 10;
+	@Override
+	protected void onStart() {
+		super.onStart();
+		myLocationClient.connect();
+	}
 
-		if (savedInstanceState != null) {
-			mapType = savedInstanceState.getInt("map_type",
-					GoogleMap.MAP_TYPE_NORMAL);
-
-			double savedLat = savedInstanceState.getDouble("lat");
-			double savedLng = savedInstanceState.getDouble("lng");
-			cameraLatLng = new LatLng(savedLat, savedLng);
-
-			cameraZoom = savedInstanceState.getFloat("zoom", 10);
-		}
-
-		googleMap.setMapType(mapType);
-		googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(QUIXADA,
-				cameraZoom));
+	@Override
+	protected void onStop() {
+		myLocationClient.disconnect();
+		super.onStop();
 	}
 
 	@Override
@@ -76,43 +88,209 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		super.onOptionsItemSelected(item);
-
-		switch (item.getItemId()) {
-		case R.id.normal_map:
-			mapType = GoogleMap.MAP_TYPE_NORMAL;
-			break;
-
-		case R.id.satellite_map:
-			mapType = GoogleMap.MAP_TYPE_SATELLITE;
-			break;
-
-		case R.id.terrain_map:
-			mapType = GoogleMap.MAP_TYPE_TERRAIN;
-			break;
-
-		case R.id.hybrid_map:
-			mapType = GoogleMap.MAP_TYPE_HYBRID;
-			break;
-		}
-
-		googleMap.setMapType(mapType);
-		return true;
-	}
-
-	@Override
 	protected void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
 
 		// save the map type so when we change orientation, the mape type can be
 		// restored
+
 		LatLng cameraLatLng = googleMap.getCameraPosition().target;
 		float cameraZoom = googleMap.getCameraPosition().zoom;
-		outState.putInt("map_type", mapType);
-		outState.putDouble("lat", cameraLatLng.latitude);
-		outState.putDouble("lng", cameraLatLng.longitude);
-		outState.putFloat("zoom", cameraZoom);
+		outState.putDouble("latitude", cameraLatLng.latitude);
+		outState.putDouble("longitude", cameraLatLng.longitude);
+		outState.putDouble("zoom", cameraZoom);
 
 	}
+
+	@Override
+	public void onConnectionFailed(ConnectionResult connectionResult) {
+		if (connectionResult.hasResolution()) {
+			try {
+				// Start an Activity that tries to resolve the error
+				connectionResult.startResolutionForResult(this,
+						CONNECTION_FAILURE_RESOLUTION_REQUEST);
+				/*
+				 * Thrown if Google Play services canceled the original
+				 * PendingIntent
+				 */
+			} catch (IntentSender.SendIntentException e) {
+				// Log the error
+				e.printStackTrace();
+			}
+		} else {
+			/*
+			 * If no resolution is available, display a dialog to the user with
+			 * the error.
+			 */
+			showErrorDialog(connectionResult.getErrorCode());
+		}
+
+	}
+
+	@Override
+	public void onConnected(Bundle arg0) {
+
+		Location location = myLocationClient.getLastLocation();
+		if (location == null) {
+			myLocationClient.requestLocationUpdates(myLocationRequest,
+					(com.google.android.gms.location.LocationListener) this);
+		}
+		// Toast.makeText(this, "Connected", Toast.LENGTH_SHORT).show();
+		LocationManager manager = (LocationManager) this
+				.getSystemService(Context.LOCATION_SERVICE);
+		manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
+		localizacaoAtual = myLocationClient.getLastLocation();
+		latitude = localizacaoAtual.getLatitude();
+		longitude = localizacaoAtual.getLongitude();
+
+		Log.e("QXSQUARE", "Latitude:" + latitude);
+		Log.e("QXSQUARE", "Longitude:" + longitude);
+
+		FragmentManager fragmentManager = getSupportFragmentManager();
+		SupportMapFragment mapFragment = (SupportMapFragment) fragmentManager
+				.findFragmentById(R.id.map);
+		googleMap = mapFragment.getMap();
+		addMarcador(latitude, longitude);
+
+	}
+
+	@Override
+	public void onDisconnected() {
+		Toast.makeText(this, "Disconnected. Please re-connect.",
+				Toast.LENGTH_SHORT).show();
+
+	}
+
+	public void getLocation(View v) {
+		// Verifica se o playservice está ativo
+		if (isGooglePlayServicesAvailable()) {
+			if (amIConected) {
+				localizacaoAtual = myLocationClient.getLastLocation();
+			}
+		}
+	}
+
+	private boolean isGooglePlayServicesAvailable() {
+
+		// Check that Google Play services is available
+		int resultCode = GooglePlayServicesUtil
+				.isGooglePlayServicesAvailable(this);
+
+		// If Google Play services is available
+		if (ConnectionResult.SUCCESS == resultCode) {
+			// In debug mode, log the status
+			// Continue
+			return true;
+			// Google Play services was not available for some reason
+		} else {
+			// Display an error dialog
+			Dialog dialog = GooglePlayServicesUtil.getErrorDialog(resultCode,
+					this, 0);
+			if (dialog != null) {
+			}
+			return false;
+		}
+	}
+
+	public void addMarcador(double latitude, double longitude) {
+		LatLng latlng = new LatLng(latitude, longitude);
+		googleMap.addMarker(new MarkerOptions().position(latlng).icon(
+				BitmapDescriptorFactory
+						.fromResource(R.drawable.marker)));
+		googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, 17));
+
+	}
+
+	@Override
+	public void onLocationChanged(Location location) {
+		localizacaoAtual = location;
+
+	}
+
+	@Override
+	public void onStatusChanged(String provider, int status, Bundle extras) {
+
+	}
+
+	@Override
+	public void onProviderEnabled(String provider) {
+
+	}
+
+	@Override
+	public void onProviderDisabled(String provider) {
+
+	}
+
+	public void showErrorDialog(int code) {
+		GooglePlayServicesUtil.getErrorDialog(code, this,
+				REQUEST_CODE_RECOVER_PLAY_SERVICES).show();
+	}
+	
+	
+	private class GetAddressTask extends AsyncTask<Location, Void, String> {
+		Context mContext;
+
+		public GetAddressTask(Context context) {
+			super();
+			mContext = context;
+		}
+
+		/*
+		 * When the task finishes, onPostExecute() displays the address.
+		 */
+		@Override
+		protected void onPostExecute(String address) {
+			// Display the current address in the UI
+		}
+
+		@Override
+		protected String doInBackground(Location... params) {
+			Geocoder geocoder = new Geocoder(mContext, Locale.getDefault());
+			// Get the current location from the input parameter list
+			Location loc = params[0];
+			// Create a list to contain the result address
+			List<Address> enderecos = null;
+			try {
+				enderecos = geocoder.getFromLocation(loc.getLatitude(),
+						loc.getLongitude(), 1);
+			} catch (IOException e1) {
+				Log.e("LocationSampleActivity",
+						"IO Exception in getFromLocation()");
+				e1.printStackTrace();
+				return ("IO Exception trying to get address");
+			} catch (IllegalArgumentException e2) {
+				// Error message to post in the log
+				String errorString = "Illegal arguments "
+						+ Double.toString(loc.getLatitude()) + " , "
+						+ Double.toString(loc.getLongitude())
+						+ " passed to address service";
+				Log.e("LocationSampleActivity", errorString);
+				e2.printStackTrace();
+				return errorString;
+			}
+			// If the reverse geocode returned an address
+			if (enderecos != null && enderecos.size() > 0) {
+				// Get the first address
+				Address address = enderecos.get(0);
+				/*
+				 * Format the first line of address (if available), city, and
+				 * country name.
+				 */
+				String addressText = String.format(
+						"%s, %s, %s",
+						// If there's a street address, add it
+						address.getMaxAddressLineIndex() > 0 ? address
+								.getAddressLine(0) : "",
+						// Locality is usually a city
+						address.getLocality(),
+						// The country of the address
+						address.getCountryName());
+				// Return the text
+				return addressText;
+			} else {
+				return "Nenhum endereço encontrado";
+			}
+		}
+	}// AsyncTask class
 }
