@@ -4,8 +4,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.IntentSender;
 import android.location.Address;
 import android.location.Geocoder;
@@ -14,6 +17,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.util.Log;
@@ -39,7 +43,6 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 
 	private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 	private final static int REQUEST_CODE_RECOVER_PLAY_SERVICES = 1001;
-	
 
 	private boolean updatesRequest = false;
 	private Location localizacaoAtual = null;
@@ -55,6 +58,7 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		isLocationServicesEnabled();
 		// Criando o Client de localização
 		myLocationClient = new LocationClient(this, this, this);
 
@@ -129,7 +133,7 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 
 	@Override
 	public void onConnected(Bundle arg0) {
-
+		isLocationServicesEnabled();
 		Location location = myLocationClient.getLastLocation();
 		if (location == null) {
 			myLocationClient.requestLocationUpdates(myLocationRequest,
@@ -195,8 +199,7 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 	public void addMarcador(double latitude, double longitude) {
 		LatLng latlng = new LatLng(latitude, longitude);
 		googleMap.addMarker(new MarkerOptions().position(latlng).icon(
-				BitmapDescriptorFactory
-						.fromResource(R.drawable.marker)));
+				BitmapDescriptorFactory.fromResource(R.drawable.marker)));
 		googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, 17));
 
 	}
@@ -226,8 +229,7 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		GooglePlayServicesUtil.getErrorDialog(code, this,
 				REQUEST_CODE_RECOVER_PLAY_SERVICES).show();
 	}
-	
-	
+
 	private class GetAddressTask extends AsyncTask<Location, Void, String> {
 		Context mContext;
 
@@ -293,4 +295,6 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 			}
 		}
 	}// AsyncTask class
+
+		
 }
