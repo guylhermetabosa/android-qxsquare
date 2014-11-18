@@ -1,19 +1,10 @@
 package com.tabosag.qxsquare.bean;
 
-import java.util.List;
-
 public class Local {
 
-	private long id;
 	private String nome;
-
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
-	}
+	private double latitude;
+	private double longitude;
 
 	public String getNome() {
 		return nome;
@@ -23,14 +14,20 @@ public class Local {
 		this.nome = nome;
 	}
 
-	public List<Contato> getContatos() {
-		return contatos;
+	public double getLatitude() {
+		return latitude;
 	}
 
-	public void setContatos(List<Contato> contatos) {
-		this.contatos = contatos;
+	public void setLatitude(double latitude) {
+		this.latitude = latitude;
 	}
 
-	List<Contato> contatos;
+	public double getLongitude() {
+		return longitude;
+	}
+
+	public void setLongitude(double longitude) {
+		this.longitude = longitude;
+	}
 
 }

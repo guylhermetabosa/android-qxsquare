@@ -1,10 +1,16 @@
 package com.tabosag.qxsquare;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import android.app.Dialog;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.IntentSender;
 import android.location.Address;
@@ -32,6 +38,8 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.tabosa.qxsquare.rede.HttpConnection;
+import com.tabosag.qxsquare.bean.Local;
 
 public class MainActivity extends FragmentActivity implements LocationListener,
 		GooglePlayServicesClient.ConnectionCallbacks,
@@ -39,6 +47,10 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 
 	private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 	private final static int REQUEST_CODE_RECOVER_PLAY_SERVICES = 1001;
+	private final static String URL_WEB_SERVICE = "http://10.0.100.242:8080";
+	private static final String TAG_NAME = "name";
+	private static final String TAG_LATIDUDE = "lat";
+	private static final String TAG_LONGITUDE = "lng";
 
 	private boolean updatesRequest = false;
 	private Location localizacaoAtual = null;
@@ -48,6 +60,11 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 	private LocationRequest myLocationRequest;
 	private double latitude;
 	private double longitude;
+	private double placeLatitude;
+	private double placeLongitude;
+	private JSONArray place;
+	private String placeName;
+	private List<Local> locais = new ArrayList<Local>();
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -64,6 +81,8 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		myLocationRequest.setFastestInterval(1000);
 
 		updatesRequest = false;
+
+		new JSONParse().execute();
 
 	}
 
@@ -149,6 +168,7 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 				.findFragmentById(R.id.map);
 		googleMap = mapFragment.getMap();
 		addMarcador(latitude, longitude);
+		addMarcadoresLocaisMapa();
 
 	}
 
@@ -195,6 +215,16 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		googleMap.addMarker(new MarkerOptions().position(latlng).icon(
 				BitmapDescriptorFactory.fromResource(R.drawable.marker)));
 		googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, 17));
+
+	}
+
+	private void addMarcadoresLocaisMapa() {
+		for (int i = 0; i < locais.size(); i++) {
+			LatLng latLng = new LatLng(locais.get(i).getLatitude(), locais.get(
+					i).getLongitude());
+			googleMap.addMarker(new MarkerOptions().position(latLng).title(
+					locais.get(i).getNome()));
+		}
 
 	}
 
@@ -290,5 +320,56 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		}
 	}// AsyncTask class
 
-		
+	private class JSONParse extends AsyncTask<String, String, JSONObject> {
+
+		private ProgressDialog dialog;
+
+		@Override
+		protected void onPreExecute() {
+			super.onPreExecute();
+			dialog = new ProgressDialog(MainActivity.this);
+			dialog.setMessage("Obtendo Dados ...");
+			dialog.setIndeterminate(false);
+			dialog.setCancelable(true);
+			dialog.show();
+		}
+
+		@Override
+		protected JSONObject doInBackground(String... params) {
+			HttpConnection conexao = new HttpConnection();
+
+			JSONObject json = conexao.getDataWeb(URL_WEB_SERVICE);
+			return json;
+		}
+
+		@Override
+		protected void onPostExecute(JSONObject result) {
+			dialog.dismiss();
+
+			try {
+				Local local = new Local();
+
+				place = result.getJSONArray("venues");
+
+				for (int i = 0; i < place.length(); i++) {
+					JSONObject object = place.getJSONObject(i);
+					JSONObject location = object.getJSONObject("location");
+					placeName = object.getString(TAG_NAME);
+					local.setNome(placeName);
+					placeLatitude = location.getDouble(TAG_LATIDUDE);
+					local.setLatitude(placeLatitude);
+					placeLongitude = location.getDouble(TAG_LONGITUDE);
+					local.setLongitude(placeLongitude);
+					addMarcadoresLocaisMapa();
+					locais.add(local);
+
+				}
+
+			} catch (JSONException e) {
+			}
+
+		}
+
+	}
+
 }
