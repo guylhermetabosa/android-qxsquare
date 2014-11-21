@@ -16,8 +16,6 @@ import android.content.IntentSender;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
@@ -31,6 +29,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesClient;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.location.LocationClient;
+import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -82,14 +81,13 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 
 		updatesRequest = false;
 
-		new JSONParse().execute();
-
 	}
 
 	@Override
 	protected void onStart() {
 		super.onStart();
 		myLocationClient.connect();
+		new JSONParse().execute();
 	}
 
 	@Override
@@ -147,29 +145,32 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 
 	@Override
 	public void onConnected(Bundle arg0) {
-		Location location = myLocationClient.getLastLocation();
-		if (location == null) {
-			myLocationClient.requestLocationUpdates(myLocationRequest,
-					(com.google.android.gms.location.LocationListener) this);
-		}
+		myLocationClient.requestLocationUpdates(myLocationRequest, this);
+
 		// Toast.makeText(this, "Connected", Toast.LENGTH_SHORT).show();
-		LocationManager manager = (LocationManager) this
-				.getSystemService(Context.LOCATION_SERVICE);
-		manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
-		localizacaoAtual = myLocationClient.getLastLocation();
-		latitude = localizacaoAtual.getLatitude();
-		longitude = localizacaoAtual.getLongitude();
-
-		Log.e("QXSQUARE", "Latitude:" + latitude);
-		Log.e("QXSQUARE", "Longitude:" + longitude);
-
+		// LocationManager manager = (LocationManager) this
+		// .getSystemService(Context.LOCATION_SERVICE);
+		// manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0,
+		// this);
 		FragmentManager fragmentManager = getSupportFragmentManager();
 		SupportMapFragment mapFragment = (SupportMapFragment) fragmentManager
 				.findFragmentById(R.id.map);
 		googleMap = mapFragment.getMap();
-		addMarcador(latitude, longitude);
-		addMarcadoresLocaisMapa();
+		googleMap.setMyLocationEnabled(true);
 
+		localizacaoAtual = myLocationClient.getLastLocation();
+		if (localizacaoAtual == null) {
+
+		} else {
+			latitude = localizacaoAtual.getLatitude();
+			longitude = localizacaoAtual.getLongitude();
+
+			Log.e("QXSQUARE", "Latitude:" + latitude);
+			Log.e("QXSQUARE", "Longitude:" + longitude);
+
+			addMarcador(latitude, longitude);
+			addMarcadoresLocaisMapa();
+		}
 	}
 
 	@Override
@@ -231,21 +232,6 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 	@Override
 	public void onLocationChanged(Location location) {
 		localizacaoAtual = location;
-
-	}
-
-	@Override
-	public void onStatusChanged(String provider, int status, Bundle extras) {
-
-	}
-
-	@Override
-	public void onProviderEnabled(String provider) {
-
-	}
-
-	@Override
-	public void onProviderDisabled(String provider) {
 
 	}
 
