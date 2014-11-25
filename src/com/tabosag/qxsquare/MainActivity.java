@@ -2,8 +2,15 @@ package com.tabosag.qxsquare;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -12,6 +19,7 @@ import org.json.JSONObject;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.IntentSender;
 import android.location.Address;
 import android.location.Geocoder;
@@ -22,6 +30,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
 import android.util.Log;
 import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
 
@@ -36,6 +45,7 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.tabosa.qxsquare.rede.HttpConnection;
 import com.tabosag.qxsquare.bean.Local;
@@ -46,16 +56,17 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 
 	private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
 	private final static int REQUEST_CODE_RECOVER_PLAY_SERVICES = 1001;
-	private final static String URL_WEB_SERVICE = "http://10.0.100.242:8080";
+	private final static String URL_WEB_SERVICE = "http://192.168.2.104:8080";
 	private static final String TAG_NAME = "name";
 	private static final String TAG_LATIDUDE = "lat";
 	private static final String TAG_LONGITUDE = "lng";
 
-	private boolean updatesRequest = false;
 	private Location localizacaoAtual = null;
 	private boolean amIConected = false;
 	private GoogleMap googleMap;
 	private LocationClient myLocationClient;
+	private Bundle parametros;
+
 	private LocationRequest myLocationRequest;
 	private double latitude;
 	private double longitude;
@@ -64,11 +75,14 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 	private JSONArray place;
 	private String placeName;
 	private List<Local> locais = new ArrayList<Local>();
+	private Map<String, Float> locaisProximos = new HashMap<>();
+	public static Map<String, Float> locaisOrdenados = new HashMap<>();
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+		parametros = new Bundle();
 
 		// Criando o Client de localização
 		myLocationClient = new LocationClient(this, this, this);
@@ -78,8 +92,6 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		myLocationRequest.setInterval(LocationUtils.UPDATE_TIME);
 		myLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 		myLocationRequest.setFastestInterval(1000);
-
-		updatesRequest = false;
 
 	}
 
@@ -101,6 +113,20 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		super.onCreateOptionsMenu(menu);
 		getMenuInflater().inflate(R.menu.map_style_menu, menu);
 		return true;
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+
+		switch (item.getItemId()) {
+		case R.id.locaisProximos:
+			putMap(locaisOrdenados);
+			Intent intent = new Intent(this, LocaisProximos.class);
+			intent.putExtras(parametros);
+			
+			startActivity(intent);
+		}
+		return super.onOptionsItemSelected(item);
 	}
 
 	@Override
@@ -225,8 +251,59 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 					i).getLongitude());
 			googleMap.addMarker(new MarkerOptions().position(latLng).title(
 					locais.get(i).getNome()));
+
 		}
 
+		distanciaEntrePontos();
+		locaisOrdenados = ordernaDistancias(locaisProximos);
+
+		googleMap
+				.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+
+					@Override
+					public void onInfoWindowClick(Marker marker) {
+
+						Intent intent = getPackageManager()
+								.getLaunchIntentForPackage(
+										"com.example.avaliandoecompartilhando");
+						intent.putExtra("namePlace", marker.getTitle());
+						startActivity(intent);
+
+					}
+				});
+	}
+
+	public void distanciaEntrePontos() {
+		Location local = new Location("");
+		float distanciaMetros = 0;
+		for (int i = 0; i < locais.size(); i++) {
+			local.setLatitude(locais.get(i).getLatitude());
+			local.setLongitude(locais.get(i).getLongitude());
+			distanciaMetros = localizacaoAtual.distanceTo(local);
+			locaisProximos.put(locais.get(i).getNome(), distanciaMetros);
+		}
+	}
+
+	public Map ordernaDistancias(Map<String, Float> hash) {
+		List<Map.Entry<String, Float>> list = new LinkedList<Map.Entry<String, Float>>(
+				hash.entrySet());
+
+		Collections.sort(list, new Comparator<Map.Entry<String, Float>>() {
+
+			@Override
+			public int compare(Map.Entry<String, Float> o1,
+					Map.Entry<String, Float> o2) {
+				return (o1.getValue()).compareTo(o2.getValue());
+			}
+		});
+
+		Map<String, Float> sortedMap = new LinkedHashMap<String, Float>();
+		for (Iterator<Map.Entry<String, Float>> it = list.iterator(); it
+				.hasNext();) {
+			Map.Entry<String, Float> entry = it.next();
+			sortedMap.put(entry.getKey(), entry.getValue());
+		}
+		return sortedMap;
 	}
 
 	@Override
@@ -238,6 +315,18 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 	public void showErrorDialog(int code) {
 		GooglePlayServicesUtil.getErrorDialog(code, this,
 				REQUEST_CODE_RECOVER_PLAY_SERVICES).show();
+	}
+	
+	public static Map<String, Float> getLocaisOrdenados() {
+		return locaisOrdenados;
+	}
+	
+	public void putMap(Map<String,Float> hash){
+		int i = 0;
+		for (Map.Entry<String, Float> entry : hash.entrySet()) {
+			parametros.putString("local"+i, entry.getKey() + "," + entry.getValue());
+			i++;
+		}
 	}
 
 	private class GetAddressTask extends AsyncTask<Location, Void, String> {
@@ -357,5 +446,7 @@ public class MainActivity extends FragmentActivity implements LocationListener,
 		}
 
 	}
+	
+	
 
 }
